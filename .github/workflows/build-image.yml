@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Gitee branch or tag to build
+        description: Source branch in this repo to build
         required: true
         type: string
         default: patched
@@ -16,7 +16,6 @@ permissions:
   packages: write
 
 env:
-  GITEE_REPO: https://gitee.com/msp520/Server-S5A3.git
   DEFAULT_REF: patched
   IMAGE: ghcr.io/oyxp233/s5a3-server
 
@@ -24,14 +23,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Clone source from Gitee
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'patched' }}
+
+      - name: Prepare Dockerfile
         run: |
-          REF="${{ inputs.ref }}"
-          [ -n "$REF" ] || REF="$DEFAULT_REF"
-          echo "Building ref: $REF"
-          git clone --depth 1 --branch "$REF" "$GITEE_REPO" src
           # 现有 Dockerfile 用了 BuildKit 的 --mount 语法，补 syntax 指令避免前端版本差异
-          sed -i '1i # syntax=docker/dockerfile:1' src/deploy/docker/Dockerfile
+          sed -i '1i # syntax=docker/dockerfile:1' deploy/docker/Dockerfile
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -46,8 +46,8 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: ./src
-          file: ./src/deploy/docker/Dockerfile
+          context: .
+          file: ./deploy/docker/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE }}:latest
